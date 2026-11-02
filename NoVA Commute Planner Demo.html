@@ -1,0 +1,645 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>NoVA Commute Planner Demo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: controls column beside a schematic reach map, results table full width below; stacks on phones. */
+:root {
+  --bg: #edf1f3;
+  --panel: #ffffff;
+  --ink: #13222c;
+  --muted: #56707e;
+  --line: #d2dce2;
+  --land: #e4ebe8;
+  --water: #b9d5e4;
+  --road: #9fb1ba;
+  --teal: #0a746f;
+  --teal-soft: rgba(10, 116, 111, 0.16);
+  --amber: #b85c08;
+  --amber-soft: rgba(184, 92, 8, 0.09);
+  --hollow: #7d909b;
+  --chip: #f3f6f7;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1920; --panel: #14242d; --ink: #e3ecf0; --muted: #93a9b5; --line: #27404d;
+    --land: #12212a; --water: #0c3248; --road: #3b5665;
+    --teal: #3fd0c6; --teal-soft: rgba(63, 208, 198, 0.18);
+    --amber: #f0a04b; --amber-soft: rgba(240, 160, 75, 0.10);
+    --hollow: #6f8794; --chip: #1a2e38;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1920; --panel: #14242d; --ink: #e3ecf0; --muted: #93a9b5; --line: #27404d;
+  --land: #12212a; --water: #0c3248; --road: #3b5665;
+  --teal: #3fd0c6; --teal-soft: rgba(63, 208, 198, 0.18);
+  --amber: #f0a04b; --amber-soft: rgba(240, 160, 75, 0.10);
+  --hollow: #6f8794; --chip: #1a2e38;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  padding-block: 20px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 16px; }
+h1 {
+  font-family: var(--font-display); font-weight: 700; font-size: clamp(30px, 6vw, 44px);
+  line-height: 1; margin: 0 0 6px; letter-spacing: 0.01em; text-transform: uppercase; text-wrap: balance;
+}
+.lede { margin: 0; color: var(--muted); max-width: 62ch; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; min-width: 0; }
+.layout { display: grid; gap: 16px; grid-template-columns: 1fr; }
+@media (min-width: 920px) { .layout { grid-template-columns: minmax(280px, 340px) minmax(0, 1fr); align-items: start; } }
+h2 {
+  font-family: var(--font-display); font-weight: 600; font-size: 15px; letter-spacing: 0.09em;
+  text-transform: uppercase; margin: 0 0 10px; color: var(--muted);
+}
+label, .lbl { display: block; font-weight: 500; margin-bottom: 4px; }
+select, input[type="text"] {
+  width: 100%; font: inherit; color: var(--ink); background: var(--chip);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; min-height: 38px;
+}
+button { font: inherit; cursor: pointer; }
+.btn {
+  background: var(--teal); color: var(--panel); border: 0; border-radius: 6px; padding: 8px 14px;
+  font-weight: 600; min-height: 38px;
+}
+.btn.ghost { background: var(--chip); color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.stack { display: grid; gap: 14px; }
+.row { display: flex; gap: 8px; }
+.row > input { flex: 1; min-width: 0; }
+.hint { margin: 6px 0 0; color: var(--muted); font-size: 12.5px; }
+.hint a { color: var(--teal); }
+.slider-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.slider-head output { font-family: var(--font-mono); font-weight: 500; }
+input[type="range"] { width: 100%; accent-color: var(--teal); margin: 4px 0 0; }
+.budget-out { font-family: var(--font-display); font-size: 34px; font-weight: 700; line-height: 1; }
+.budget-out small { font-size: 15px; font-weight: 600; color: var(--muted); margin-left: 3px; }
+details { border-top: 1px solid var(--line); padding-top: 12px; }
+summary { cursor: pointer; font-weight: 600; }
+details .stack { margin-top: 12px; }
+.formula { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); margin: 0; }
+
+.mapbox { position: relative; aspect-ratio: 599 / 700; max-height: 82vh; width: 100%; margin: 0 auto; border-radius: 8px; overflow: hidden; border: 1px solid var(--line); background: var(--land); }
+.mapbox svg { display: block; width: 100%; height: 100%; cursor: grab; touch-action: pan-y pinch-zoom; user-select: none; }
+.mapbox.zoomed svg { touch-action: none; }
+.mapbox svg:active { cursor: grabbing; }
+.maptools { position: absolute; top: 8px; right: 8px; display: grid; gap: 4px; }
+.maptools button {
+  width: 34px; height: 34px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel);
+  color: var(--ink); font-size: 18px; line-height: 1; padding: 0; font-weight: 600;
+}
+.maptools button.txt { font-size: 11px; font-family: var(--font-display); letter-spacing: 0.04em; text-transform: uppercase; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--muted); }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.sw { width: 11px; height: 11px; border-radius: 50%; display: inline-block; flex: none; }
+.sw.t { background: var(--teal); } .sw.a { background: var(--amber); } .sw.h { border: 2px solid var(--hollow); }
+.sw.rt { border-radius: 3px; border: 2px solid var(--teal); background: var(--teal-soft); }
+.sw.ra { border-radius: 3px; border: 2px dashed var(--amber); }
+.mapnote { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+
+/* SVG */
+svg { --u: 1; }
+.land { fill: var(--land); }
+.river { fill: none; stroke: var(--water); stroke-width: 11px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.hwy { fill: none; stroke: var(--road); stroke-width: 2px; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.hwy.beltway { stroke-dasharray: 7 4; }
+.geo { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.22em; fill: var(--road); opacity: 0.8; font-size: calc(var(--u) * 17px); text-anchor: middle; pointer-events: none; }
+.rlabel { font-family: var(--font-mono); fill: var(--muted); font-size: calc(var(--u) * 9.5px); pointer-events: none; }
+.ring-rush { fill: var(--teal-soft); stroke: var(--teal); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.ring-off { fill: var(--amber-soft); stroke: var(--amber); stroke-width: 2px; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
+.dot { r: calc(var(--u) * 5px); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.dot.ok { fill: var(--teal); stroke: var(--panel); }
+.dot.off { fill: var(--amber); stroke: var(--panel); }
+.dot.far { fill: var(--panel); stroke: var(--hollow); }
+.dot.pick { stroke: var(--ink); stroke-width: 2.5px; }
+.dlabel { font-family: var(--font-body); font-weight: 500; fill: var(--ink); font-size: calc(var(--u) * 10.5px); paint-order: stroke; stroke: var(--land); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.work-mark { fill: var(--ink); stroke: var(--panel); stroke-width: 2px; vector-effect: non-scaling-stroke; }
+.work-label { font-family: var(--font-display); font-weight: 700; font-size: calc(var(--u) * 13px); letter-spacing: 0.06em; text-transform: uppercase; fill: var(--ink); paint-order: stroke; stroke: var(--land); stroke-width: 3.5px; stroke-linejoin: round; pointer-events: none; }
+
+/* Results */
+.summary { font-family: var(--font-display); font-size: clamp(20px, 3.6vw, 26px); font-weight: 600; line-height: 1.2; margin: 0 0 4px; text-wrap: balance; }
+.summary b { color: var(--teal); font-weight: 700; }
+.summary b.am { color: var(--amber); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin: 12px 0; }
+.filters label { display: flex; align-items: center; gap: 6px; margin: 0; font-weight: 400; }
+.filters select { width: auto; min-height: 34px; padding: 4px 8px; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; }
+th, td { padding: 8px 10px; text-align: left; vertical-align: middle; border-bottom: 1px solid var(--line); }
+th { font-family: var(--font-display); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--chip); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.area { font-weight: 600; }
+.note { display: block; font-size: 12px; color: var(--muted); font-weight: 400; }
+.pill { display: inline-block; min-width: 62px; text-align: center; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.pill.ok { background: var(--teal-soft); border-color: var(--teal); color: var(--ink); }
+.pill.off { background: var(--amber-soft); border-color: var(--amber); }
+.star { background: none; border: 0; font-size: 19px; line-height: 1; color: var(--hollow); padding: 4px; }
+.star[aria-pressed="true"] { color: var(--amber); }
+td a { color: var(--teal); white-space: nowrap; }
+.empty { padding: 22px; text-align: center; color: var(--muted); }
+.byline { margin: 10px 0 0; font-family: var(--font-display); font-weight: 600; font-size: 17px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.byline a { color: var(--teal); text-decoration: none; border-bottom: 2px solid var(--teal); padding-bottom: 1px; }
+.byline a:hover { color: var(--ink); border-bottom-color: var(--ink); }
+.brokerage { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); font-family: var(--font-display); font-weight: 600; font-size: 16px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); }
+.brokerage span { color: var(--muted); font-weight: 500; }
+.foot { font-size: 12.5px; color: var(--muted); display: grid; gap: 6px; }
+.foot p { margin: 0; max-width: 90ch; }
+@media (prefers-reduced-motion: no-preference) { .pill, .btn { transition: background-color .15s; } }
+.try { margin: 0; padding: 10px 12px; background: var(--chip); border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
+.try b { color: var(--ink); }
+.try.done { display: none; }
+.cta { padding: 14px; border: 2px solid var(--teal); border-radius: 8px; background: var(--teal-soft); }
+.cta-h { font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.1; margin: 0 0 6px; text-transform: uppercase; letter-spacing: 0.02em; }
+.cta-p { margin: 0 0 12px; }
+a.btn { display: inline-flex; align-items: center; text-decoration: none; }
+select:disabled, input:disabled, button:disabled { opacity: 0.55; cursor: not-allowed; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>NoVA Commute Planner</h1>
+    <p class="lede">Pick where you work, set how long you are willing to drive, and see which Northern Virginia neighborhoods fit, at rush hour and off-peak.</p>
+    <p class="byline">Prepared by <a href="https://map.realtyonegroup.com/real-estate-agent/59713/lena-zaky" target="_blank" rel="noopener">Lena Zaky</a></p>
+  </header>
+
+  <div class="layout">
+    <section class="panel stack" aria-label="Commute settings">
+      <p id="tryNote" class="try"><b>Try it once.</b> Choose a work location or move the commute limit. You get one change, then the map locks.</p>
+      <div id="cta" class="cta" hidden>
+        <p class="cta-h">Want this for your own commute?</p>
+        <p class="cta-p">Lena Zaky can match neighborhoods to your work address, budget and timeline.</p>
+        <a class="btn" href="https://map.realtyonegroup.com/real-estate-agent/59713/lena-zaky" target="_blank" rel="noopener">See Lena's page ↗</a>
+      </div>
+      <div>
+        <label for="work">Where you work</label>
+        <select id="work"></select>
+      </div>
+
+      <form id="addrForm" autocomplete="off">
+        <label for="addr">Or enter an address</label>
+        <div class="row">
+          <input id="addr" type="text" placeholder="Street address or 38.8719, -77.0563" inputmode="text">
+          <button class="btn" type="submit" id="locateBtn">Locate</button>
+        </div>
+        <p class="hint" id="addrMsg">Paste coordinates from Google Maps for an exact pin.</p>
+      </form>
+
+      <div>
+        <div class="slider-head">
+          <label for="budget" style="margin:0">Longest commute you will accept</label>
+        </div>
+        <div class="budget-out"><span id="budgetOut">45</span><small>min one way</small></div>
+        <input id="budget" type="range" min="15" max="90" step="5" value="45">
+      </div>
+
+      <details hidden>
+        <summary>Adjust the estimate</summary>
+        <div class="stack">
+          <div>
+            <div class="slider-head"><label for="extra" style="margin:0">Parking, gate and walking time</label><output id="extraOut" for="extra">10 min</output></div>
+            <input id="extra" type="range" min="0" max="25" step="1" value="10">
+          </div>
+          <div>
+            <div class="slider-head"><label for="rushBase" style="margin:0">Rush-hour speed (short trips)</label><output id="rushOut" for="rushBase">16 mph</output></div>
+            <input id="rushBase" type="range" min="10" max="26" step="1" value="16">
+          </div>
+          <div>
+            <div class="slider-head"><label for="offBase" style="margin:0">Off-peak speed (short trips)</label><output id="offOut" for="offBase">30 mph</output></div>
+            <input id="offBase" type="range" min="22" max="40" step="1" value="30">
+          </div>
+          <div>
+            <div class="slider-head"><label for="circ" style="margin:0">Road winding factor</label><output id="circOut" for="circ">1.30</output></div>
+            <input id="circ" type="range" min="1.1" max="1.6" step="0.05" value="1.3">
+          </div>
+          <p class="formula">time = extra + straight-line miles × winding ÷ speed. Longer trips use faster roads, so speed rises with distance.</p>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel" aria-label="Reach map">
+      <h2>Reach map</h2>
+      <div class="mapbox" id="mapbox">
+        <svg id="map" role="img" aria-label="Schematic map of Northern Virginia showing neighborhoods inside the commute budget"></svg>
+        <div class="maptools">
+          <button type="button" id="zin" aria-label="Zoom in">+</button>
+          <button type="button" id="zout" aria-label="Zoom out">−</button>
+          <button type="button" id="zfit" class="txt" aria-label="Fit map to the reach rings">Fit</button>
+        </div>
+      </div>
+      <ul class="legend">
+        <li><span class="sw t"></span>Inside budget at rush hour</li>
+        <li><span class="sw a"></span>Only off-peak</li>
+        <li><span class="sw h"></span>Beyond budget</li>
+        <li><span class="sw rt"></span>Rush-hour reach</li>
+        <li><span class="sw ra"></span>Off-peak reach</li>
+      </ul>
+      <p class="mapnote">Schematic map. The river and highways are simplified and only help you find your bearings. Drag to pan.</p>
+    </section>
+  </div>
+
+  <section class="panel" aria-label="Neighborhood results">
+    <h2>Neighborhoods</h2>
+    <p class="summary" id="summary" aria-live="polite"></p>
+    <div class="filters">
+      <label><input type="checkbox" id="onlyOk"> Only inside budget at rush hour</label>
+      <label><input type="checkbox" id="onlyStar"> Shortlist only</label>
+      <label>Sort by
+        <select id="sort">
+          <option value="rush">Rush-hour time</option>
+          <option value="off">Off-peak time</option>
+          <option value="metro">Metro time (Pentagon only)</option>
+          <option value="name">Name</option>
+        </select>
+      </label>
+    </div>
+    <div class="tablewrap"><table id="tbl"></table></div>
+  </section>
+
+  <div class="foot">
+    <p>These are estimates from straight-line distance, not live traffic. Before you sign a lease or contract, open the route link on a neighborhood and check the real drive at the hour you would leave.</p>
+    <p class="brokerage"><span>Prepared by</span> <a href="https://map.realtyonegroup.com/real-estate-agent/59713/lena-zaky" target="_blank" rel="noopener" style="color:var(--teal)">Lena Zaky</a> &nbsp;·&nbsp; Realty One Capital</p>
+    <p id="metroNote" hidden>Metro times are rough station-to-station figures and include one transfer where needed. Add your trip to the station and your wait. VRE and bus options are mentioned in the notes but not timed.</p>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- Geometry ----------
+  var COS = Math.cos(38.9 * Math.PI / 180), K = 1000;
+  var LAT1 = 39.15, LAT0 = 38.45, LNG0 = -77.62, LNG1 = -76.85;
+  var W = (LNG1 - LNG0) * COS * K, H = (LAT1 - LAT0) * K;
+  var MI_LAT = 69.05, UPM = K / MI_LAT; // map units per mile
+  function proj(lat, lng) { return [(lng - LNG0) * COS * K, (LAT1 - lat) * K]; }
+  function miles(a, b) {
+    var dy = (a.lat - b.lat) * MI_LAT, dx = (a.lng - b.lng) * MI_LAT * COS;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // ---------- Data ----------
+  var WORK = [
+    { g: 'Military', items: [
+      { id: 'pentagon', name: 'Pentagon', lat: 38.8719, lng: -77.0563, extra: 10 },
+      { id: 'belvoir', name: 'Fort Belvoir', lat: 38.7117, lng: -77.1460, extra: 8 },
+      { id: 'myer', name: 'Fort Myer / Henderson Hall', lat: 38.8785, lng: -77.0782, extra: 6 },
+      { id: 'markctr', name: 'Mark Center, Alexandria', lat: 38.8326, lng: -77.1086, extra: 6 },
+      { id: 'quantico', name: 'Marine Corps Base Quantico', lat: 38.5223, lng: -77.3005, extra: 8 },
+      { id: 'mcnair', name: 'Fort McNair, DC', lat: 38.8676, lng: -77.0165, extra: 8 },
+      { id: 'navyyard', name: 'Washington Navy Yard, DC', lat: 38.8745, lng: -77.0035, extra: 8 },
+      { id: 'andrews', name: 'Joint Base Andrews, MD', lat: 38.8108, lng: -76.8670, extra: 8 },
+      { id: 'walterreed', name: 'Walter Reed, Bethesda MD', lat: 38.9987, lng: -77.0936, extra: 8 }
+    ]},
+    { g: 'Federal and civilian', items: [
+      { id: 'langley', name: 'Langley, McLean', lat: 38.9515, lng: -77.1466, extra: 8 },
+      { id: 'crystal', name: 'Crystal City', lat: 38.8570, lng: -77.0510, extra: 5 },
+      { id: 'rosslyn', name: 'Rosslyn', lat: 38.8960, lng: -77.0720, extra: 5 },
+      { id: 'dc', name: 'Downtown DC', lat: 38.8977, lng: -77.0365, extra: 8 },
+      { id: 'tysons', name: 'Tysons', lat: 38.9187, lng: -77.2245, extra: 5 },
+      { id: 'reston', name: 'Reston Town Center', lat: 38.9586, lng: -77.3570, extra: 5 },
+      { id: 'chantilly', name: 'Chantilly', lat: 38.8836, lng: -77.4373, extra: 6 },
+      { id: 'dulles', name: 'Dulles Airport', lat: 38.9531, lng: -77.4565, extra: 6 }
+    ]}
+  ];
+
+  // metro = approximate station-to-station minutes to Pentagon station (null = no Metro station)
+  var AREAS = [
+    { id: 'pentcity', name: 'Pentagon City, Arlington', lat: 38.8627, lng: -77.0595, metro: 3, note: 'Pentagon City station, Blue and Yellow' },
+    { id: 'crystal', name: 'Crystal City, Arlington', lat: 38.8570, lng: -77.0510, metro: 4, note: 'Blue and Yellow; VRE' },
+    { id: 'rosslyn', name: 'Rosslyn, Arlington', lat: 38.8960, lng: -77.0720, metro: 8, note: 'Blue, Orange and Silver' },
+    { id: 'ballston', name: 'Ballston, Arlington', lat: 38.8820, lng: -77.1115, metro: 21, note: 'Orange and Silver, transfer at Rosslyn' },
+    { id: 'shirlington', name: 'Shirlington, Arlington', lat: 38.8410, lng: -77.0870, metro: null, note: 'Bus; no Metro station' },
+    { id: 'delray', name: 'Del Ray, Alexandria', lat: 38.8250, lng: -77.0590, metro: 10, note: 'Potomac Yard station nearby' },
+    { id: 'oldtown', name: 'Old Town, Alexandria', lat: 38.8048, lng: -77.0469, metro: 14, note: 'King St–Old Town, Blue and Yellow; VRE' },
+    { id: 'landmark', name: 'West Alexandria / Landmark', lat: 38.8150, lng: -77.1200, metro: null, note: 'Bus; close to Mark Center' },
+    { id: 'huntington', name: 'Huntington, Alexandria', lat: 38.7937, lng: -77.0759, metro: 18, note: 'Yellow Line end of line' },
+    { id: 'mtvernon', name: 'Mount Vernon / Fort Hunt', lat: 38.7270, lng: -77.0800, metro: null, note: 'Drive or bus; Huntington Metro is north' },
+    { id: 'lorton', name: 'Lorton', lat: 38.7040, lng: -77.2280, metro: null, note: 'VRE; I-95' },
+    { id: 'springfield', name: 'Springfield', lat: 38.7893, lng: -77.1872, metro: 26, note: 'Franconia–Springfield, Blue; VRE' },
+    { id: 'annandale', name: 'Annandale', lat: 38.8304, lng: -77.1964, metro: null, note: 'Bus; near I-495 and I-395' },
+    { id: 'fallschurch', name: 'Falls Church', lat: 38.8823, lng: -77.1711, metro: 25, note: 'East and West Falls Church stations' },
+    { id: 'merrifield', name: 'Merrifield / Dunn Loring', lat: 38.8700, lng: -77.2290, metro: 33, note: 'Dunn Loring station, Orange' },
+    { id: 'vienna', name: 'Vienna', lat: 38.9012, lng: -77.2653, metro: 34, note: 'Orange Line end of line' },
+    { id: 'tysons', name: 'Tysons', lat: 38.9187, lng: -77.2245, metro: 30, note: 'Silver Line, transfer at Rosslyn' },
+    { id: 'mclean', name: 'McLean', lat: 38.9339, lng: -77.1773, metro: 28, note: 'McLean station, Silver' },
+    { id: 'oakton', name: 'Oakton', lat: 38.8810, lng: -77.3011, metro: null, note: 'Drive; near I-66 and Vienna Metro' },
+    { id: 'fairfax', name: 'Fairfax City', lat: 38.8462, lng: -77.3064, metro: null, note: 'CUE bus; I-66' },
+    { id: 'burke', name: 'Burke', lat: 38.7934, lng: -77.2717, metro: null, note: 'VRE Burke Centre' },
+    { id: 'centreville', name: 'Centreville', lat: 38.8404, lng: -77.4289, metro: null, note: 'Drive; I-66' },
+    { id: 'chantilly', name: 'Chantilly', lat: 38.8943, lng: -77.4311, metro: null, note: 'Drive; I-66 and Route 50' },
+    { id: 'reston', name: 'Reston', lat: 38.9687, lng: -77.3411, metro: 43, note: 'Silver Line, Wiehle–Reston East' },
+    { id: 'herndon', name: 'Herndon', lat: 38.9696, lng: -77.3861, metro: 47, note: 'Silver Line, Herndon station' },
+    { id: 'sterling', name: 'Sterling', lat: 39.0062, lng: -77.4286, metro: null, note: 'Drive; Dulles Toll Road' },
+    { id: 'ashburn', name: 'Ashburn', lat: 39.0438, lng: -77.4874, metro: 60, note: 'Silver Line, Ashburn station' },
+    { id: 'leesburg', name: 'Leesburg', lat: 39.1157, lng: -77.5636, metro: null, note: 'Drive; Route 7' },
+    { id: 'woodbridge', name: 'Woodbridge', lat: 38.6582, lng: -77.2497, metro: null, note: 'VRE; I-95' },
+    { id: 'dalecity', name: 'Dale City', lat: 38.6370, lng: -77.3110, metro: null, note: 'Drive; I-95' },
+    { id: 'manassas', name: 'Manassas', lat: 38.7509, lng: -77.4753, metro: null, note: 'VRE; I-66' }
+  ];
+
+  // Simplified geography, [lat, lng] pairs
+  var RIVER = [[39.000,-77.250],[38.985,-77.200],[38.960,-77.150],[38.9285,-77.115],[38.9025,-77.0705],[38.8875,-77.0500],[38.870,-77.0420],[38.830,-77.0400],[38.790,-77.0400],[38.720,-77.0400],[38.670,-77.070],[38.620,-77.140],[38.570,-77.220],[38.520,-77.290],[38.480,-77.340]];
+  var ROADS = [
+    { cls: 'hwy', p: [[38.870,-77.040],[38.865,-77.055],[38.840,-77.090],[38.828,-77.112],[38.795,-77.170]] },
+    { cls: 'hwy', p: [[38.795,-77.170],[38.745,-77.205],[38.704,-77.228],[38.660,-77.250],[38.570,-77.320],[38.450,-77.400]] },
+    { cls: 'hwy beltway', p: [[38.790,-77.040],[38.790,-77.100],[38.795,-77.170],[38.835,-77.200],[38.870,-77.230],[38.920,-77.222],[38.945,-77.180],[38.966,-77.147],[39.000,-77.080],[39.060,-77.070]] },
+    { cls: 'hwy', p: [[38.897,-77.070],[38.880,-77.110],[38.885,-77.180],[38.855,-77.300],[38.838,-77.430],[38.770,-77.470],[38.740,-77.600]] },
+    { cls: 'hwy', p: [[38.895,-77.160],[38.930,-77.220],[38.955,-77.340],[38.955,-77.440]] }
+  ];
+  var RLABELS = [[38.823,-77.126,'I-395'],[38.600,-77.300,'I-95'],[38.846,-77.345,'I-66'],[38.9,-77.232,'I-495']];
+
+  // ---------- State ----------
+  var S = { work: WORK[0].items[0], budget: 45, extra: 10, rushBase: 16, offBase: 30, circ: 1.3, sort: 'rush', onlyOk: false, onlyStar: false };
+  var MODES = { rush: { gain: 0.5, cap: 30 }, off: { gain: 0.8, cap: 50 } };
+  var star = {};
+  try { star = JSON.parse(localStorage.getItem('nova-shortlist') || '{}') || {}; } catch (e) { star = {}; }
+  function saveStar() { try { localStorage.setItem('nova-shortlist', JSON.stringify(star)); } catch (e) {} }
+
+  function speed(mode, mi) { return Math.min(MODES[mode].cap, S[mode + 'Base'] + MODES[mode].gain * mi); }
+  function driveMin(mi, mode) { return S.extra + (mi * S.circ) / speed(mode, mi) * 60; }
+  function radiusFor(T, mode) {
+    if (T <= S.extra) return 0;
+    var lo = 0, hi = 200;
+    for (var i = 0; i < 40; i++) {
+      var mid = (lo + hi) / 2;
+      if (driveMin(mid, mode) > T) hi = mid; else lo = mid;
+    }
+    return lo;
+  }
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function $(id) { return document.getElementById(id); }
+
+  // ---------- Map setup ----------
+  var svg = $('map'), box = $('mapbox');
+  var NS = 'http://www.w3.org/2000/svg';
+  function pts(arr) { return arr.map(function (p) { var q = proj(p[0], p[1]); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' '); }
+  var statics = '<rect class="land" x="-200" y="-200" width="' + (W + 400) + '" height="' + (H + 400) + '"/>' +
+    '<polyline class="river" points="' + pts(RIVER) + '"/>' +
+    ROADS.map(function (r) { return '<polyline class="' + r.cls + '" points="' + pts(r.p) + '"/>'; }).join('');
+  var geo = [[38.905, -77.012, 'DC'], [38.99, -77.5, 'VIRGINIA'], [38.93, -76.93, 'MARYLAND']].map(function (g) {
+    var q = proj(g[0], g[1]); return '<text class="geo" x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '">' + g[2] + '</text>';
+  }).join('');
+  var rl = RLABELS.map(function (g) {
+    var q = proj(g[0], g[1]); return '<text class="rlabel" x="' + q[0].toFixed(1) + '" y="' + q[1].toFixed(1) + '">' + g[2] + '</text>';
+  }).join('');
+  svg.innerHTML = '<g>' + statics + geo + rl + '</g><g id="dyn"></g>';
+  var dyn = $('dyn');
+
+  var vb = { x: 0, y: 0, w: W, h: H };
+  function aspect() { var r = box.getBoundingClientRect(); return r.height > 0 ? r.width / r.height : W / H; }
+  function applyView() {
+    svg.setAttribute('viewBox', vb.x.toFixed(1) + ' ' + vb.y.toFixed(1) + ' ' + vb.w.toFixed(1) + ' ' + vb.h.toFixed(1));
+    var px = box.getBoundingClientRect().width || 600;
+    svg.style.setProperty('--u', (vb.w / px).toFixed(4));
+    box.classList.toggle('zoomed', vb.w < W * 0.85);
+  }
+  function setView(cx, cy, halfW) {
+    var a = aspect();
+    vb.w = Math.max(60, Math.min(halfW * 2, W * 1.3));
+    vb.h = vb.w / a;
+    vb.x = cx - vb.w / 2; vb.y = cy - vb.h / 2;
+    applyView();
+  }
+  function fit() {
+    var c = proj(S.work.lat, S.work.lng);
+    var r = Math.max(radiusFor(S.budget, 'rush'), radiusFor(S.budget, 'off'), 5);
+    var half = r * UPM * 1.25;
+    var a = aspect();
+    setView(c[0], c[1], a >= 1 ? half * a : half);
+  }
+  function zoom(f) {
+    var cx = vb.x + vb.w / 2, cy = vb.y + vb.h / 2;
+    setView(cx, cy, vb.w / 2 * f);
+  }
+  $('zin').onclick = function () { zoom(0.7); };
+  $('zout').onclick = function () { zoom(1.43); };
+  $('zfit').onclick = fit;
+  var drag = null;
+  svg.addEventListener('pointerdown', function (e) {
+    drag = { x: e.clientX, y: e.clientY, vx: vb.x, vy: vb.y };
+    try { svg.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  svg.addEventListener('pointermove', function (e) {
+    if (!drag) return;
+    var k = vb.w / (box.getBoundingClientRect().width || 600);
+    vb.x = drag.vx - (e.clientX - drag.x) * k;
+    vb.y = drag.vy - (e.clientY - drag.y) * k;
+    applyView();
+  });
+  function endDrag() { drag = null; }
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointercancel', endDrag);
+  if (window.ResizeObserver) new ResizeObserver(function () { vb.h = vb.w / aspect(); applyView(); }).observe(box);
+
+  // ---------- Compute + render ----------
+  var rows = [];
+  function compute() {
+    rows = AREAS.map(function (a) {
+      var mi = miles(S.work, a);
+      return { a: a, mi: mi, road: mi * S.circ, rush: driveMin(mi, 'rush'), off: driveMin(mi, 'off') };
+    });
+  }
+  function drawMap() {
+    var c = proj(S.work.lat, S.work.lng);
+    var rr = radiusFor(S.budget, 'rush') * UPM, ro = radiusFor(S.budget, 'off') * UPM;
+    var h = '<circle class="ring-off" cx="' + c[0].toFixed(1) + '" cy="' + c[1].toFixed(1) + '" r="' + ro.toFixed(1) + '"/>' +
+            '<circle class="ring-rush" cx="' + c[0].toFixed(1) + '" cy="' + c[1].toFixed(1) + '" r="' + rr.toFixed(1) + '"/>';
+    var dots = '', labels = '';
+    rows.forEach(function (r) {
+      var p = proj(r.a.lat, r.a.lng);
+      var cls = r.rush <= S.budget ? 'ok' : (r.off <= S.budget ? 'off' : 'far');
+      var tip = r.a.name + ': ' + Math.round(r.rush) + ' min at rush hour, ' + Math.round(r.off) + ' min off-peak';
+      dots += '<circle class="dot ' + cls + (star[r.a.id] ? ' pick' : '') + '" cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '"><title>' + esc(tip) + '</title></circle>';
+      if (cls !== 'far' || star[r.a.id]) {
+        labels += '<text class="dlabel" x="' + (p[0] + 7).toFixed(1) + '" y="' + (p[1] + 3.5).toFixed(1) + '">' + esc(r.a.name.split(',')[0]) + '</text>';
+      }
+    });
+    // diamond keeps a constant screen size: CSS transform can use the --u scale variable, attributes cannot
+    var wm = '<rect class="work-mark" x="-6" y="-6" width="12" height="12" style="transform: translate(' + c[0].toFixed(1) + 'px,' + c[1].toFixed(1) + 'px) scale(var(--u)) rotate(45deg);"/>' +
+         '<text class="work-label" x="' + (c[0] + 4).toFixed(1) + '" y="' + (c[1] - 12).toFixed(1) + '">' + esc(S.work.name) + '</text>';
+    dyn.innerHTML = h + dots + wm + labels;
+  }
+  function fmt(n) { return Math.round(n) + ' min'; }
+  function mapsLink(a) {
+    return 'https://www.google.com/maps/dir/?api=1&origin=' + a.lat + ',' + a.lng + '&destination=' + S.work.lat + ',' + S.work.lng + '&travelmode=driving';
+  }
+  function drawTable() {
+    var showMetro = S.work.id === 'pentagon';
+    $('metroNote').hidden = !showMetro;
+    var list = rows.filter(function (r) {
+      if (S.onlyOk && r.rush > S.budget) return false;
+      if (S.onlyStar && !star[r.a.id]) return false;
+      return true;
+    });
+    var key = S.sort;
+    if (key === 'metro' && !showMetro) key = 'rush';
+    list.sort(function (x, y) {
+      if (key === 'name') return x.a.name.localeCompare(y.a.name);
+      if (key === 'metro') {
+        var mx = x.a.metro == null ? 999 : x.a.metro, my = y.a.metro == null ? 999 : y.a.metro;
+        return mx - my || x.rush - y.rush;
+      }
+      return x[key] - y[key];
+    });
+    var head = '<thead><tr><th aria-label="Shortlist"></th><th>Neighborhood</th><th class="num">Road mi</th><th class="num">Rush hour</th><th class="num">Off-peak</th>' +
+      (showMetro ? '<th class="num" title="Approximate station-to-station minutes">Metro</th>' : '') + '<th>Check</th></tr></thead>';
+    var body = list.map(function (r) {
+      var on = !!star[r.a.id];
+      return '<tr><td><button type="button" class="star" data-id="' + r.a.id + '" aria-pressed="' + on + '" aria-label="Shortlist ' + esc(r.a.name) + '">' + (on ? '★' : '☆') + '</button></td>' +
+        '<td><span class="area">' + esc(r.a.name) + '</span><span class="note">' + esc(r.a.note) + '</span></td>' +
+        '<td class="num">' + r.road.toFixed(1) + '</td>' +
+        '<td class="num"><span class="pill ' + (r.rush <= S.budget ? 'ok' : '') + '">' + fmt(r.rush) + '</span></td>' +
+        '<td class="num"><span class="pill ' + (r.off <= S.budget ? 'off' : '') + '">' + fmt(r.off) + '</span></td>' +
+        (showMetro ? '<td class="num">' + (r.a.metro == null ? '—' : '~' + r.a.metro + ' min') + '</td>' : '') +
+        '<td><a href="' + mapsLink(r.a) + '" target="_blank" rel="noopener">Route ↗</a></td></tr>';
+    }).join('');
+    var cols = showMetro ? 7 : 6;
+    if (!list.length) body = '<tr><td colspan="' + cols + '" class="empty">Nothing matches these filters. Raise the commute limit or clear a filter.</td></tr>';
+    $('tbl').innerHTML = head + '<tbody>' + body + '</tbody>';
+  }
+  function drawSummary() {
+    var nr = rows.filter(function (r) { return r.rush <= S.budget; }).length;
+    var no = rows.filter(function (r) { return r.off <= S.budget; }).length;
+    $('summary').innerHTML = '<b>' + nr + '</b> of ' + rows.length + ' neighborhoods are within ' + S.budget + ' minutes of ' + esc(S.work.name) + ' at rush hour. <b class="am">' + no + '</b> fit off-peak.';
+  }
+  function update() {
+    compute(); drawMap(); drawTable(); drawSummary();
+    $('budgetOut').textContent = S.budget;
+    $('extraOut').textContent = S.extra + ' min';
+    $('rushOut').textContent = S.rushBase + ' mph';
+    $('offOut').textContent = S.offBase + ' mph';
+    $('circOut').textContent = S.circ.toFixed(2);
+  }
+
+  // ---------- Controls ----------
+  var sel = $('work');
+  sel.innerHTML = WORK.map(function (g) {
+    return '<optgroup label="' + esc(g.g) + '">' + g.items.map(function (w) { return '<option value="' + w.id + '">' + esc(w.name) + '</option>'; }).join('') + '</optgroup>';
+  }).join('') + '<option value="custom" hidden>Your address</option>';
+  function findWork(id) {
+    for (var i = 0; i < WORK.length; i++) for (var j = 0; j < WORK[i].items.length; j++) if (WORK[i].items[j].id === id) return WORK[i].items[j];
+    return null;
+  }
+  function setWork(w) {
+    S.work = w; S.extra = w.extra; $('extra').value = w.extra;
+    update(); fit();
+    registerChange();
+  }
+  sel.addEventListener('change', function () { var w = findWork(sel.value); if (w) setWork(w); });
+
+  function bindRange(id, key, num) {
+    $(id).addEventListener('input', function (e) { S[key] = num(e.target.value); update(); });
+  }
+  bindRange('budget', 'budget', Number);
+  bindRange('extra', 'extra', Number);
+  bindRange('rushBase', 'rushBase', Number);
+  bindRange('offBase', 'offBase', Number);
+  bindRange('circ', 'circ', parseFloat);
+  $('budget').addEventListener('change', function () { fit(); registerChange(); });
+  $('onlyOk').addEventListener('change', function (e) { S.onlyOk = e.target.checked; drawTable(); });
+  $('onlyStar').addEventListener('change', function (e) { S.onlyStar = e.target.checked; drawTable(); });
+  $('sort').addEventListener('change', function (e) { S.sort = e.target.value; drawTable(); });
+  $('tbl').addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button.star') : null;
+    if (!b) return;
+    var id = b.getAttribute('data-id');
+    if (star[id]) delete star[id]; else star[id] = 1;
+    saveStar(); drawMap(); drawTable();
+  });
+
+  // ---------- Address lookup ----------
+  var sample = null;
+  (async function () {
+    try { if (window.claude && window.claude.use) sample = await window.claude.use('sample'); } catch (e) { sample = null; }
+  })();
+  function msg(html) { $('addrMsg').innerHTML = html; }
+  function inBounds(lat, lng) { return lat >= LAT0 && lat <= LAT1 && lng >= LNG0 && lng <= LNG1; }
+  function useCustom(lat, lng, label, how) {
+    if (!inBounds(lat, lng)) { msg('That spot is outside this map, which covers Northern Virginia, DC and nearby Maryland. Try a closer address.'); return; }
+    var w = { id: 'custom', name: label || 'Your workplace', lat: lat, lng: lng, extra: 6 };
+    var opt = sel.querySelector('option[value="custom"]'); opt.hidden = false; opt.textContent = w.name; sel.value = 'custom';
+    setWork(w);
+    msg(how + ' <a href="https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lng + '" target="_blank" rel="noopener">Check the pin ↗</a>');
+  }
+  $('addrForm').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var q = $('addr').value.trim();
+    if (!q) { msg('Type an address or paste coordinates first.'); return; }
+    var m = q.match(/^\s*(-?\d{1,2}\.\d+)\s*[, ]\s*(-?\d{1,3}\.\d+)\s*$/);
+    if (m) { useCustom(parseFloat(m[1]), parseFloat(m[2]), 'Pinned location', 'Using your coordinates.'); return; }
+    if (!sample) { msg('Address lookup is not available here. Paste coordinates instead: in Google Maps, right-click the spot and click the numbers to copy them.'); return; }
+    var btn = $('locateBtn'); btn.disabled = true; msg('Looking up the address…');
+    try {
+      var r = await sample.json(
+        'Give the approximate latitude and longitude of this place in the Washington DC / Northern Virginia / nearby Maryland area: "' + q.replace(/"/g, "'") + '". ' +
+        'Reply with only JSON like {"lat": 38.8719, "lng": -77.0563, "label": "short place name"}. ' +
+        'If you cannot place it with reasonable confidence in this region, reply {"error": "short reason"}.',
+        { modelTier: 'quick' }
+      );
+      if (r && typeof r.lat === 'number' && typeof r.lng === 'number') {
+        useCustom(r.lat, r.lng, String(r.label || q).slice(0, 40), 'Located by Claude, so treat it as approximate.');
+      } else {
+        msg('Could not place that address' + (r && r.error ? ' (' + esc(r.error) + ')' : '') + '. Try a fuller address or paste coordinates.');
+      }
+    } catch (err) {
+      var c = err && err.code;
+      if (c === 'not_granted' || c === 'sampling_disabled' || c === 'not_declared' || c === 'capability_disabled') {
+        msg('Address lookup was not allowed. Paste coordinates from Google Maps instead.');
+      } else if (c === 'rate_limited') {
+        msg('Too many lookups for now. Try again in a minute, or paste coordinates.');
+      } else {
+        msg('The lookup did not work. Try again, or paste coordinates.');
+      }
+    } finally { btn.disabled = false; }
+  });
+
+  // ---------- One free change, then a prompt to Lena's page ----------
+  var DEMO_KEY = 'nova-demo-v1', used = false;
+  function lockUI() {
+    used = true;
+    ['work', 'addr', 'locateBtn', 'budget'].forEach(function (id) { $(id).disabled = true; });
+    $('tryNote').className = 'try done';
+    $('cta').hidden = false;
+    msg('');
+  }
+  function registerChange() {
+    if (used) return;
+    try { localStorage.setItem(DEMO_KEY, JSON.stringify({ work: S.work, budget: S.budget, extra: S.extra })); } catch (e) {}
+    lockUI();
+  }
+  (function restore() {
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(DEMO_KEY) || 'null'); } catch (e) { saved = null; }
+    if (!saved || !saved.work || typeof saved.work.lat !== 'number' || typeof saved.work.lng !== 'number' ||
+        typeof saved.work.name !== 'string' || typeof saved.budget !== 'number' || saved.budget < 15 || saved.budget > 90) return;
+    S.work = { id: String(saved.work.id), name: saved.work.name, lat: saved.work.lat, lng: saved.work.lng, extra: Number(saved.extra) || 6 };
+    S.budget = saved.budget; S.extra = S.work.extra;
+    $('budget').value = S.budget; $('extra').value = S.extra;
+    if (findWork(S.work.id)) { sel.value = S.work.id; } else {
+      var opt = sel.querySelector('option[value="custom"]'); opt.hidden = false; opt.textContent = S.work.name; sel.value = 'custom';
+    }
+    lockUI();
+  })();
+
+  // ---------- Go ----------
+  update();
+  fit();
+  window.addEventListener('resize', function () { vb.h = vb.w / aspect(); applyView(); });
+})();
+</script>
+
+</body></html>
